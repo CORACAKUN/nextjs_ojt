@@ -18,7 +18,7 @@ export default async function Home() {
         ))}
       </ul> */}
 
-      <div className="flex flex-col items-center md:items-start gap-2 md:w-1/2 ">
+      <div className="border mt-8 h-screen">
         <h1 className="text-4xl font-bold">Landing Page</h1>
         <p className="text-center md:text-start">
           Lorem ipsum, dolor sit amet consectetur adipisicing elit. Dignissimos consequuntur sequi quo placeat quia nobis asperiores excepturi, harum beatae, similique impedit minima quibusdam non corporis eum amet. Nostrum, doloribus dicta?

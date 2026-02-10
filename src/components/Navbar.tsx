@@ -7,13 +7,13 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-16 bg-white text-black border-b z-50">
+    <header className="fixed top-0 left-0 right-0 h-16 bg-blue-950 text-whiteborder-b z-50">
       <div className="flex justify-between items-center h-full px-6 md:px-8">
         <strong>My App</strong>
         <nav className="hidden md:flex items-center gap-6">
           <Link href="/">Home</Link>
+          <Link href="/">Features</Link>
           <Link href="/about">About</Link>
-          <Link href="/">Pricing</Link>
           <Link href="/">Contact</Link>
           <Link
             href="/"
