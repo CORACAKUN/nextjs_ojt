@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 export default function LoginForm(){
@@ -19,6 +20,7 @@ export default function LoginForm(){
 
         setError("");
         setSuccess(true);
+        console.log("Email:", email);
 
     }
 
@@ -37,6 +39,9 @@ export default function LoginForm(){
             <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
                 Login
             </button>
+            <Link             
+            className="text-blue-500 hover:underline"  
+            href="../register">Don't have an account? Register</Link>
 
             {error && <p className="text-red-500">{error}</p>}
             {success && <p className="text-green-500">Login successful!</p>}
