@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
+import Navbar from "@/components/Navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,7 +14,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const cardsStyle = "bg-white text-black p-8 rounded-md ";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -30,41 +30,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <header className="flex justify-center flex-col items-center p-8 border-0 m-8 rounded-xl bg-white text-black">
-          <strong className="">My OJT App</strong>
-          <Link href="/">Home</Link>
-          <Link href="/about">About</Link>
-        </header>
-        <div className="flex flex-col flex-wrap justify-center h-auto gap-2 m-8 p-8  border-2 rounded-xl md:flex-row">
-          <div className="bg-white text-black p-8 rounded-md ">Lorem </div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 m-8 p-8 border-2 rounded-xl text-sm md:text-lg lg:text-xl">
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-          <div className="bg-white text-black p-8 rounded-md ">lorem</div>
-        </div>
-        <h1 className="text-center text-2xl font-bold">Uses same styles on multiple elements using constant class string</h1>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 m-8 p-8 border-2 rounded-xl text-sm md:text-lg lg:text-xl">
-          <div className={cardsStyle}>Card 1</div>
-          <div className={cardsStyle}>Card 2</div>
-          <div className={cardsStyle}>Card 3</div>
-        </div>
+        <Navbar />
         {children}
       </body>
     </html>
