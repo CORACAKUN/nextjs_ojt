@@ -29,3 +29,34 @@ body {
   color: var(--background);
   text-decoration: underline;
 }
+
+.hero{
+  background-image: url('assets/beaches/Slide1.png');
+  background-size: cover;
+  background-repeat: no-repeat;
+  height: 100vh;
+  /* width: 100vw; */
+}
+
+.cards{
+  background-image: url('assets/beaches/Slide4.png');
+  background-size: cover;
+  background-repeat: no-repeat;
+  /* height: 100vh; */
+  /* width: 100vw; */
+}
+
+.about{
+  background-image: url('assets/beaches/Slide5.png');
+  background-size: cover;
+  background-repeat: no-repeat;
+  /* height: 100vh; */
+  /* width: 100vw; */
+}
+.contact{
+  background-image: url('assets/beaches/Slide3.png');
+  background-size: cover;
+  background-repeat: no-repeat;
+  /* height: 100vh; */
+  /* width: 100vw; */
+}
