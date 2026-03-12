@@ -2,85 +2,149 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
+
+type RegisterValues = {
+  fullName: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
 
 export default function RegisterForm() {
-    const [name, setName] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState(false);
+  const router = useRouter();
+  const [submitError, setSubmitError] = useState("");
+  const [success, setSuccess] = useState(false);
 
-    const inputStyle = "border-b h-10 w-60";
+  const {
+    register,
+    handleSubmit,
+    getValues,
+    formState: { errors, isSubmitting },
+  } = useForm<RegisterValues>({
+    defaultValues: {
+      fullName: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
+  });
 
-    function handleSubmit(e: React.FormEvent){
-        e.preventDefault();
+  const onSubmit = async () => {
+    setSubmitError("");
+    setSuccess(false);
 
-        if( !name || !email || !password || !confirmPassword){
-            setError("All fields are requred!");
-            setSuccess(false);
+    // Dummy async register flow.
+    await new Promise((resolve) => setTimeout(resolve, 700));
 
-            return;
-        }
+    setSuccess(true);
+    router.push("/login");
+  };
 
-        if(password !== confirmPassword){
-            setError("Password does not mathc!");
-            setSuccess(false);
+  return (
+    <Paper
+      component="form"
+      onSubmit={handleSubmit(onSubmit)}
+      elevation={8}
+      sx={{
+        width: "100%",
+        maxWidth: 460,
+        p: 4,
+        borderRadius: 3,
+      }}
+    >
+      <Stack spacing={2.5}>
+        <Typography variant="h5" fontWeight={700}>
+          Register
+        </Typography>
 
-            return;
-        }
+        <TextField
+          label="Full Name"
+          fullWidth
+          error={!!errors.fullName}
+          helperText={errors.fullName?.message}
+          {...register("fullName", {
+            required: "Full name is required",
+            minLength: {
+              value: 2,
+              message: "Full name must be at least 2 characters",
+            },
+          })}
+        />
 
-        setError("");
-        setSuccess(true);
-        console.log("namee " + name, "email: "+email, "password: "+password);
-    }
+        <TextField
+          label="Email"
+          type="email"
+          fullWidth
+          error={!!errors.email}
+          helperText={errors.email?.message}
+          {...register("email", {
+            required: "Email is required",
+            pattern: {
+              value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+              message: "Enter a valid email",
+            },
+          })}
+        />
 
-    return (
-        <form action=""
-        onSubmit={handleSubmit}
-        className="flex flex-col p-8 items-center gap-4 shadow-2xl rounded-lg" >
-            <h2 className="">Register</h2>
-            
-            <input 
-            type="text" 
-            placeholder="Full Name" 
-            value={name}
-            className={inputStyle}
-            onChange={(e)=> setName(e.target.value)}/>
+        <TextField
+          label="Password"
+          type="password"
+          fullWidth
+          error={!!errors.password}
+          helperText={errors.password?.message}
+          {...register("password", {
+            required: "Password is required",
+            minLength: {
+              value: 8,
+              message: "Password must be at least 8 characters",
+            },
+          })}
+        />
 
-            <input 
-            type="email" 
-            placeholder="Email" 
-            value={email}
-            onChange={(e)=> setEmail(e.target.value)} 
-            className={inputStyle}/>
+        <TextField
+          label="Confirm Password"
+          type="password"
+          fullWidth
+          error={!!errors.confirmPassword}
+          helperText={errors.confirmPassword?.message}
+          {...register("confirmPassword", {
+            required: "Confirm password is required",
+            validate: (value) =>
+              value === getValues("password") || "Passwords do not match",
+          })}
+        />
 
-            <input 
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e)=> setPassword(e.target.value)} 
-            className={inputStyle}/>
+        {submitError && <Alert severity="error">{submitError}</Alert>}
+        {success && <Alert severity="success">Registration successful</Alert>}
 
-            <input 
-            type="text" 
-            placeholder="Confirm Password"
-            value={confirmPassword}
-            onChange={(e)=> setConfirmPassword(e.target.value)}
-            className={inputStyle}/>
+        <Button
+          type="submit"
+          variant="contained"
+          size="large"
+          disabled={isSubmitting}
+          startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : null}
+        >
+          {isSubmitting ? "Creating account..." : "Register"}
+        </Button>
 
-            {error && <p className="text-red-500 text-sm">{error}</p>}
-            {success && <p className="text-green-500 text-sm">Registration successful!</p>}
-
-            <button 
-            type="submit"
-            className="bg-blue-500 text-white px-4 py-2 rounded">
-                Register
-            </button>
-
-            <Link 
-            className="text-blue-500 hover:underline" 
-            href="../login">Have an account? Login</Link>
-        </form>
-    );
+        <Box sx={{ textAlign: "center" }}>
+          <Link className="text-blue-500 hover:underline" href="/login">
+            Have an account? Login
+          </Link>
+        </Box>
+      </Stack>
+    </Paper>
+  );
 }

@@ -1,0 +1,16 @@
+flowchart TD
+    A[User opens /login] --> B[Fill login form<br/>MUI + React Hook Form validation]
+    B --> C{Credentials valid?}
+    C -- No --> D[Show error message<br/>stay on /login]
+    D --> B
+    C -- Yes --> E[Set cookie<br/>auth_token via cookies-next]
+    E --> F[Redirect to /dashboard]
+
+    G[User requests /dashboard] --> H{auth_token exists?}
+    H -- No --> I[Middleware redirects to<br/>/login?next=/dashboard]
+    H -- Yes --> J[Allow access to dashboard]
+
+    J --> K[Dashboard loads data<br/>useQuery + dummy API]
+    K --> L[User clicks Logout]
+    L --> M[Delete auth_token cookie]
+    M --> N[Redirect to /login]
