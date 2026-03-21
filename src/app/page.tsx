@@ -1,14 +1,7 @@
-import Counter from "@/components/Counter";
 import Link from "next/link";
 import Card from "@/components/Card";
 
-async function getPosts() {
-  const res = await fetch("http://localhost:3000/api/posts");
-  return res.json();
-}
-
-export default async function Home() {
-  const posts = await getPosts();
+export default function Home() {
   const description = "Lorem ipsum dolor sit amet consectetur adipisicing elit. Voluptas, doloremque. Lorem ipsum dolor sit amet consectetur adipisicing elit. Voluptas, doloremque. lorem ipsum dolor sit amet consectetur adipisicing elit. Voluptas, doloremque. Lorem ipsum dolor sit amet consectetur adipisicing elit. Voluptas, doloremque.";
 
   return (

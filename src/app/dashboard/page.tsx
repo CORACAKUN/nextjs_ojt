@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { deleteCookie } from "cookies-next/client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -107,10 +108,14 @@ export default function Dashboard() {
       >
         <Toolbar />
         <List>
-          {["Home", "Analytics", "Users", "Settings"].map((text) => (
-            <ListItem key={text}>
-              <ListItemButton>
-                <ListItemText primary={text} />
+          {[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Posts", href: "/posts" },
+            { label: "Settings", href: "/dashboard" },
+          ].map((item) => (
+            <ListItem key={item.label}>
+              <ListItemButton component={Link} href={item.href}>
+                <ListItemText primary={item.label} />
               </ListItemButton>
             </ListItem>
           ))}
