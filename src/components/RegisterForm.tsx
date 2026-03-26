@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { useMutation } from "@tanstack/react-query";
 import {
   Alert,
   Box,
@@ -14,13 +15,8 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-
-type RegisterValues = {
-  fullName: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-};
+import { registerSchema, type RegisterValues } from "@/lib/auth-schemas";
+import { createZodResolver } from "@/lib/form-zod-resolver";
 
 export default function RegisterForm() {
   const router = useRouter();
@@ -30,9 +26,9 @@ export default function RegisterForm() {
   const {
     register,
     handleSubmit,
-    getValues,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<RegisterValues>({
+    resolver: createZodResolver(registerSchema),
     defaultValues: {
       fullName: "",
       email: "",
@@ -41,16 +37,30 @@ export default function RegisterForm() {
     },
   });
 
-  const onSubmit = async () => {
-    setSubmitError("");
-    setSuccess(false);
+  const registerMutation = useMutation({
+    mutationFn: async (data: RegisterValues) => {
+      await new Promise((resolve) => setTimeout(resolve, 700));
 
-    // Dummy async register flow.
-    await new Promise((resolve) => setTimeout(resolve, 700));
+      return {
+        email: data.email,
+      };
+    },
+    onMutate: () => {
+      setSubmitError("");
+      setSuccess(false);
+    },
+    onSuccess: () => {
+      setSuccess(true);
+      router.push("/login");
+    },
+    onError: (error) => {
+      setSubmitError(error.message);
+    },
+  });
 
-    setSuccess(true);
-    router.push("/login");
-  };
+  async function onSubmit(data: RegisterValues) {
+    await registerMutation.mutateAsync(data);
+  }
 
   return (
     <Paper
@@ -74,13 +84,7 @@ export default function RegisterForm() {
           fullWidth
           error={!!errors.fullName}
           helperText={errors.fullName?.message}
-          {...register("fullName", {
-            required: "Full name is required",
-            minLength: {
-              value: 2,
-              message: "Full name must be at least 2 characters",
-            },
-          })}
+          {...register("fullName")}
         />
 
         <TextField
@@ -89,13 +93,7 @@ export default function RegisterForm() {
           fullWidth
           error={!!errors.email}
           helperText={errors.email?.message}
-          {...register("email", {
-            required: "Email is required",
-            pattern: {
-              value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-              message: "Enter a valid email",
-            },
-          })}
+          {...register("email")}
         />
 
         <TextField
@@ -104,13 +102,7 @@ export default function RegisterForm() {
           fullWidth
           error={!!errors.password}
           helperText={errors.password?.message}
-          {...register("password", {
-            required: "Password is required",
-            minLength: {
-              value: 8,
-              message: "Password must be at least 8 characters",
-            },
-          })}
+          {...register("password")}
         />
 
         <TextField
@@ -119,11 +111,7 @@ export default function RegisterForm() {
           fullWidth
           error={!!errors.confirmPassword}
           helperText={errors.confirmPassword?.message}
-          {...register("confirmPassword", {
-            required: "Confirm password is required",
-            validate: (value) =>
-              value === getValues("password") || "Passwords do not match",
-          })}
+          {...register("confirmPassword")}
         />
 
         {submitError && <Alert severity="error">{submitError}</Alert>}
@@ -133,10 +121,14 @@ export default function RegisterForm() {
           type="submit"
           variant="contained"
           size="large"
-          disabled={isSubmitting}
-          startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : null}
+          disabled={registerMutation.isPending}
+          startIcon={
+            registerMutation.isPending ? (
+              <CircularProgress size={18} color="inherit" />
+            ) : null
+          }
         >
-          {isSubmitting ? "Creating account..." : "Register"}
+          {registerMutation.isPending ? "Creating account..." : "Register"}
         </Button>
 
         <Box sx={{ textAlign: "center" }}>

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { setCookie } from "cookies-next/client";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
 import {
   Alert,
   Box,
@@ -15,11 +16,8 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-
-type LoginValues = {
-  email: string;
-  password: string;
-};
+import { loginSchema, type LoginValues } from "@/lib/auth-schemas";
+import { createZodResolver } from "@/lib/form-zod-resolver";
 
 const AUTH_COOKIE_NAME = "auth_token";
 const DEMO_EMAIL = "demo@myapp.com";
@@ -34,35 +32,51 @@ export default function LoginForm() {
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<LoginValues>({
+    resolver: createZodResolver(loginSchema),
     defaultValues: {
       email: "",
       password: "",
     },
   });
 
-  const onSubmit = async (data: LoginValues) => {
-    setLoginError("");
-    setSuccess(false);
+  const loginMutation = useMutation({
+    mutationFn: async (data: LoginValues) => {
+      await new Promise((resolve) => setTimeout(resolve, 450));
 
-    // Demo credential check for local auth flow.
-    if (data.email !== DEMO_EMAIL || data.password !== DEMO_PASSWORD) {
-      setLoginError("Invalid credentials. Use demo@myapp.com / password123");
-      return;
-    }
+      if (data.email !== DEMO_EMAIL || data.password !== DEMO_PASSWORD) {
+        throw new Error("Invalid credentials. Use demo@myapp.com / password123");
+      }
 
-    setCookie(AUTH_COOKIE_NAME, "demo-token", {
-      maxAge: 60 * 60 * 24,
-      sameSite: "lax",
-      path: "/",
-    });
+      return {
+        token: "demo-token",
+      };
+    },
+    onMutate: () => {
+      setLoginError("");
+      setSuccess(false);
+    },
+    onSuccess: ({ token }) => {
+      setCookie(AUTH_COOKIE_NAME, token, {
+        maxAge: 60 * 60 * 24,
+        sameSite: "lax",
+        path: "/",
+      });
 
-    setSuccess(true);
-    const nextPath = searchParams.get("next") || "/dashboard";
-    router.push(nextPath);
-    router.refresh();
-  };
+      setSuccess(true);
+      const nextPath = searchParams.get("next") || "/dashboard";
+      router.push(nextPath);
+      router.refresh();
+    },
+    onError: (error) => {
+      setLoginError(error.message);
+    },
+  });
+
+  async function onSubmit(data: LoginValues) {
+    await loginMutation.mutateAsync(data);
+  }
 
   return (
     <Paper
@@ -87,13 +101,7 @@ export default function LoginForm() {
           fullWidth
           error={!!errors.email}
           helperText={errors.email?.message}
-          {...register("email", {
-            required: "Email is required",
-            pattern: {
-              value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-              message: "Enter a valid email",
-            },
-          })}
+          {...register("email")}
         />
 
         <TextField
@@ -102,13 +110,7 @@ export default function LoginForm() {
           fullWidth
           error={!!errors.password}
           helperText={errors.password?.message}
-          {...register("password", {
-            required: "Password is required",
-            minLength: {
-              value: 8,
-              message: "Password must be at least 8 characters",
-            },
-          })}
+          {...register("password")}
         />
 
         {loginError && <Alert severity="error">{loginError}</Alert>}
@@ -118,10 +120,12 @@ export default function LoginForm() {
           type="submit"
           variant="contained"
           size="large"
-          disabled={isSubmitting}
-          startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : null}
+          disabled={loginMutation.isPending}
+          startIcon={
+            loginMutation.isPending ? <CircularProgress size={18} color="inherit" /> : null
+          }
         >
-          {isSubmitting ? "Logging in..." : "Login"}
+          {loginMutation.isPending ? "Logging in..." : "Login"}
         </Button>
 
         <Box sx={{ textAlign: "center" }}>
