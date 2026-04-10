@@ -20,7 +20,7 @@ import { loginSchema, type LoginValues } from "@/lib/auth-schemas";
 import { createZodResolver } from "@/lib/form-zod-resolver";
 
 const AUTH_COOKIE_NAME = "auth_token";
-const DEMO_EMAIL = "demo@myapp.com";
+const DEMO_EMAIL = "test@myapp.com";
 const DEMO_PASSWORD = "password123";
 
 export default function LoginForm() {
@@ -46,7 +46,7 @@ export default function LoginForm() {
       await new Promise((resolve) => setTimeout(resolve, 450));
 
       if (data.email !== DEMO_EMAIL || data.password !== DEMO_PASSWORD) {
-        throw new Error("Invalid credentials. Use demo@myapp.com / password123");
+        throw new Error("Invalid credentials. Use test@myapp.com / password123");
       }
 
       return {

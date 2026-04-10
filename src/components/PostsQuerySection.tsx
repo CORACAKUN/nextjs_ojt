@@ -1,8 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, useEffect, useRef, useState, useTransition } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { FormEvent, useEffect, useState } from "react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationOptions,
+} from "@tanstack/react-query";
 
 type Comment = {
   id: number;
@@ -22,6 +27,12 @@ type Post = {
   reacted?: boolean;
 };
 
+type MutationContext = {
+  previousPosts: Post[] | undefined;
+};
+
+const postsQueryKey = ["posts"];
+
 async function fetchPosts(): Promise<Post[]> {
   const response = await fetch("/api/posts");
 
@@ -30,6 +41,94 @@ async function fetchPosts(): Promise<Post[]> {
   }
 
   return response.json();
+}
+
+async function createPostRequest(caption: string): Promise<Post> {
+  const response = await fetch("/api/posts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ caption }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to create post");
+  }
+
+  return response.json();
+}
+
+async function updatePostRequest(postId: number, caption: string): Promise<Post> {
+  const response = await fetch("/api/posts", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ postId, action: "edit", caption }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to update post");
+  }
+
+  return response.json();
+}
+
+async function reactToPostRequest(postId: number, reacted: boolean): Promise<Post> {
+  const response = await fetch("/api/posts", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ postId, action: "react", reacted }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to update reaction");
+  }
+
+  return response.json();
+}
+
+async function commentOnPostRequest(postId: number, text: string): Promise<Post> {
+  const response = await fetch("/api/posts", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ postId, action: "comment", text }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to add comment");
+  }
+
+  return response.json();
+}
+
+async function sharePostRequest(postId: number): Promise<Post> {
+  const response = await fetch("/api/posts", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ postId, action: "share" }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to share post");
+  }
+
+  return response.json();
+}
+
+async function deletePostRequest(postId: number): Promise<number> {
+  const response = await fetch(`/api/posts?postId=${postId}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to delete post");
+  }
+
+  return postId;
+}
+
+function replacePost(posts: Post[] | undefined, updatedPost: Post) {
+  return (posts ?? []).map((post) =>
+    post.id === updatedPost.id ? updatedPost : post
+  );
 }
 
 function MoreIcon() {
@@ -72,30 +171,22 @@ function ShareIcon() {
 }
 
 export default function PostsQuerySection() {
+  const queryClient = useQueryClient();
   const [composerValue, setComposerValue] = useState("");
-  const [localPosts, setLocalPosts] = useState<Post[] | null>(null);
   const [menuPostId, setMenuPostId] = useState<number | null>(null);
   const [editingPostId, setEditingPostId] = useState<number | null>(null);
   const [editingValue, setEditingValue] = useState("");
   const [commentDrafts, setCommentDrafts] = useState<Record<number, string>>({});
   const [shareMessage, setShareMessage] = useState("");
-  const [isPending, startTransition] = useTransition();
-  const nextPostId = useRef(1000);
-  const nextCommentId = useRef(5000);
+  const [mutationError, setMutationError] = useState("");
 
   const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
-    queryKey: ["posts"],
+    queryKey: postsQueryKey,
     queryFn: fetchPosts,
     staleTime: 1000 * 60 * 2,
   });
 
-  const seededPosts =
-    data?.map((post) => ({
-      ...post,
-      reacted: false,
-    })) ?? [];
-
-  const posts = localPosts ?? seededPosts;
+  const posts = data ?? [];
 
   useEffect(() => {
     if (!shareMessage) {
@@ -106,6 +197,159 @@ export default function PostsQuerySection() {
     return () => window.clearTimeout(timer);
   }, [shareMessage]);
 
+  function buildMutationOptions<TVariables>(
+    optimisticUpdater: (posts: Post[] | undefined, variables: TVariables) => Post[],
+    successUpdater?: (posts: Post[] | undefined, result: Post) => Post[]
+  ): UseMutationOptions<Post, Error, TVariables, MutationContext> {
+    return {
+      onMutate: async (variables) => {
+        setMutationError("");
+        await queryClient.cancelQueries({ queryKey: postsQueryKey });
+
+        const previousPosts = queryClient.getQueryData<Post[]>(postsQueryKey);
+        queryClient.setQueryData<Post[]>(
+          postsQueryKey,
+          optimisticUpdater(previousPosts, variables)
+        );
+
+        return { previousPosts };
+      },
+      onError: (mutationErrorValue, _variables, context) => {
+        if (context && context.previousPosts !== undefined) {
+          queryClient.setQueryData(postsQueryKey, context.previousPosts);
+        }
+        setMutationError(mutationErrorValue.message);
+      },
+      onSuccess: (result) => {
+        queryClient.setQueryData<Post[]>(
+          postsQueryKey,
+          successUpdater
+            ? successUpdater(queryClient.getQueryData<Post[]>(postsQueryKey), result)
+            : replacePost(queryClient.getQueryData<Post[]>(postsQueryKey), result)
+        );
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: postsQueryKey });
+      },
+    };
+  }
+
+  const createPostMutation = useMutation<
+    Post,
+    Error,
+    { caption: string; optimisticPost: Post },
+    MutationContext
+  >({
+    mutationFn: ({ caption }) => createPostRequest(caption),
+    onMutate: async (variables) => {
+      setMutationError("");
+      await queryClient.cancelQueries({ queryKey: postsQueryKey });
+
+      const previousPosts = queryClient.getQueryData<Post[]>(postsQueryKey);
+      queryClient.setQueryData<Post[]>(
+        postsQueryKey,
+        [variables.optimisticPost, ...(previousPosts ?? [])]
+      );
+
+      return { previousPosts };
+    },
+    onError: (mutationErrorValue, _variables, context) => {
+      if (context && context.previousPosts !== undefined) {
+        queryClient.setQueryData(postsQueryKey, context.previousPosts);
+      }
+      setMutationError(mutationErrorValue.message);
+    },
+    onSuccess: (result, variables) => {
+      queryClient.setQueryData<Post[]>(
+        postsQueryKey,
+        (currentPosts) =>
+          (currentPosts ?? []).map((post) =>
+            post.id === variables.optimisticPost.id ? result : post
+          )
+      );
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: postsQueryKey });
+    },
+  });
+
+  const updatePostMutation = useMutation<Post, Error, { postId: number; caption: string }, MutationContext>({
+    mutationFn: ({ postId, caption }) => updatePostRequest(postId, caption),
+    ...buildMutationOptions((currentPosts, variables) =>
+      (currentPosts ?? []).map((post) =>
+        post.id === variables.postId ? { ...post, caption: variables.caption } : post
+      )
+    ),
+  });
+
+  const reactMutation = useMutation<Post, Error, { postId: number; reacted: boolean }, MutationContext>({
+    mutationFn: ({ postId, reacted }) => reactToPostRequest(postId, reacted),
+    ...buildMutationOptions((currentPosts, variables) =>
+      (currentPosts ?? []).map((post) =>
+        post.id === variables.postId
+          ? {
+              ...post,
+              reacted: variables.reacted,
+              reactions: post.reactions + (variables.reacted ? 1 : -1),
+            }
+          : post
+      )
+    ),
+  });
+
+  const commentMutation = useMutation<
+    Post,
+    Error,
+    { postId: number; text: string; optimisticComment: Comment },
+    MutationContext
+  >({
+    mutationFn: ({ postId, text }) => commentOnPostRequest(postId, text),
+    ...buildMutationOptions((currentPosts, variables) =>
+      (currentPosts ?? []).map((post) =>
+        post.id === variables.postId
+          ? {
+              ...post,
+              comments: [...post.comments, variables.optimisticComment],
+            }
+          : post
+      )
+    ),
+  });
+
+  const shareMutation = useMutation<Post, Error, { postId: number }, MutationContext>({
+    mutationFn: ({ postId }) => sharePostRequest(postId),
+    ...buildMutationOptions((currentPosts, variables) =>
+      (currentPosts ?? []).map((post) =>
+        post.id === variables.postId ? { ...post, shares: post.shares + 1 } : post
+      )
+    ),
+  });
+
+  const deletePostMutation = useMutation<number, Error, { postId: number }, MutationContext>({
+    mutationFn: ({ postId }) => deletePostRequest(postId),
+    onMutate: async ({ postId }) => {
+      setMutationError("");
+      await queryClient.cancelQueries({ queryKey: postsQueryKey });
+
+      const previousPosts = queryClient.getQueryData<Post[]>(postsQueryKey);
+      queryClient.setQueryData<Post[]>(
+        postsQueryKey,
+        (currentPosts) => (currentPosts ?? []).filter((post) => post.id !== postId)
+      );
+
+      return { previousPosts };
+    },
+    onError: (mutationErrorValue, _variables, context) => {
+      if (context && context.previousPosts !== undefined) {
+        queryClient.setQueryData(postsQueryKey, context.previousPosts);
+      }
+      setMutationError(mutationErrorValue.message);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: postsQueryKey });
+    },
+  });
+
   function handleCreatePost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -114,30 +358,26 @@ export default function PostsQuerySection() {
       return;
     }
 
-    startTransition(() => {
-      setLocalPosts((current) => [
-        {
-          id: nextPostId.current++,
-          author: "You",
-          location: "Temporary post",
-          image: "/beaches/Slide7.PNG",
-          caption: value,
-          reactions: 0,
-          shares: 0,
-          comments: [],
-          reacted: false,
-        },
-        ...(current ?? seededPosts),
-      ]);
-      setComposerValue("");
-    });
+    const optimisticPost: Post = {
+      id: -Date.now(),
+      author: "CORACA",
+      location: "Temporary post",
+      image: "/beaches/Slide7.PNG",
+      caption: value,
+      reactions: 0,
+      shares: 0,
+      comments: [],
+      reacted: false,
+    };
+
+    createPostMutation.mutate({ caption: value, optimisticPost });
+    setComposerValue("");
   }
 
   function handleDelete(postId: number) {
-    setLocalPosts((current) =>
-      (current ?? seededPosts).filter((post) => post.id !== postId)
-    );
+    deletePostMutation.mutate({ postId });
     setMenuPostId(null);
+
     if (editingPostId === postId) {
       setEditingPostId(null);
       setEditingValue("");
@@ -156,30 +396,13 @@ export default function PostsQuerySection() {
       return;
     }
 
-    setLocalPosts((current) =>
-      (current ?? seededPosts).map((post) =>
-        post.id === postId ? { ...post, caption: value } : post
-      )
-    );
+    updatePostMutation.mutate({ postId, caption: value });
     setEditingPostId(null);
     setEditingValue("");
   }
 
-  function handleToggleReaction(postId: number) {
-    setLocalPosts((current) =>
-      (current ?? seededPosts).map((post) => {
-        if (post.id !== postId) {
-          return post;
-        }
-
-        const reacted = !post.reacted;
-        return {
-          ...post,
-          reacted,
-          reactions: post.reactions + (reacted ? 1 : -1),
-        };
-      })
-    );
+  function handleToggleReaction(post: Post) {
+    reactMutation.mutate({ postId: post.id, reacted: !post.reacted });
   }
 
   function handleComment(postId: number) {
@@ -188,23 +411,15 @@ export default function PostsQuerySection() {
       return;
     }
 
-    setLocalPosts((current) =>
-      (current ?? seededPosts).map((post) =>
-        post.id === postId
-          ? {
-              ...post,
-              comments: [
-                ...post.comments,
-                {
-                  id: nextCommentId.current++,
-                  author: "You",
-                  text: value,
-                },
-              ],
-            }
-          : post
-      )
-    );
+    commentMutation.mutate({
+      postId,
+      text: value,
+      optimisticComment: {
+        id: Date.now(),
+        author: "You",
+        text: value,
+      },
+    });
 
     setCommentDrafts((current) => ({
       ...current,
@@ -219,15 +434,11 @@ export default function PostsQuerySection() {
       try {
         await navigator.clipboard.writeText(shareText);
       } catch {
-        // Fall through to local share feedback.
+        // If clipboard fails, keep the optimistic share update behavior.
       }
     }
 
-    setLocalPosts((current) =>
-      (current ?? seededPosts).map((item) =>
-        item.id === post.id ? { ...item, shares: item.shares + 1 } : item
-      )
-    );
+    shareMutation.mutate({ postId: post.id });
     setShareMessage(`Copied "${post.author}" post for sharing.`);
   }
 
@@ -235,7 +446,10 @@ export default function PostsQuerySection() {
     <section className="min-h-screen bg-slate-950 text-white">
       <div
         className="border-b border-white/10 bg-cover bg-center"
-        style={{ backgroundImage: "linear-gradient(rgba(2,6,23,0.45), rgba(2,6,23,0.75)), url('/beaches/Slide1.PNG')" }}
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(2,6,23,0.45), rgba(2,6,23,0.75)), url('/beaches/Slide1.PNG')",
+        }}
       >
         <div className="mx-auto flex min-h-[26rem] max-w-6xl flex-col justify-end gap-5 px-4 py-16 pt-28 md:px-8">
           <p className="text-sm font-semibold uppercase tracking-[0.35em] text-cyan-200">
@@ -244,8 +458,8 @@ export default function PostsQuerySection() {
           <div className="max-w-3xl border-y border-white/30 py-5">
             <h1 className="text-5xl font-bold md:text-7xl">Beach Feed</h1>
             <p className="mt-3 max-w-2xl text-sm text-slate-100 md:text-lg">
-              Protected posts page with React Query loading cached starter data
-              and local temporary actions for create, edit, delete, react,
+              Protected posts page with React Query caching, optimistic updates,
+              and in-memory API mutations for create, edit, delete, react,
               comment, and share.
             </p>
           </div>
@@ -269,7 +483,10 @@ export default function PostsQuerySection() {
 
       <div
         className="bg-cover bg-fixed bg-center px-4 py-12 md:px-8"
-        style={{ backgroundImage: "linear-gradient(rgba(15,23,42,0.82), rgba(15,23,42,0.9)), url('/beaches/Slide4.PNG')" }}
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(15,23,42,0.82), rgba(15,23,42,0.9)), url('/beaches/Slide4.PNG')",
+        }}
       >
         <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
@@ -285,7 +502,7 @@ export default function PostsQuerySection() {
                   <h2 className="mt-2 text-2xl font-bold">Share something temporary</h2>
                 </div>
                 <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200">
-                  Saved in UI only
+                  Optimistic cache write
                 </span>
               </div>
 
@@ -298,30 +515,35 @@ export default function PostsQuerySection() {
 
               <div className="mt-4 flex items-center justify-between">
                 <p className="text-sm text-slate-300">
-                  Draft posts, edits, and comments reset on page reload.
+                  Changes write to the React Query cache first, then sync with the API.
                 </p>
                 <button
                   type="submit"
-                  disabled={isPending}
+                  disabled={createPostMutation.isPending}
                   className="rounded-full bg-cyan-300 px-5 py-2 font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:opacity-60"
                 >
-                  {isPending ? "Posting..." : "Post now"}
+                  {createPostMutation.isPending ? "Posting..." : "Post now"}
                 </button>
               </div>
             </form>
 
+            {mutationError && (
+              <div className="rounded-[2rem] border border-rose-400/40 bg-rose-950/40 p-6">
+                <p className="font-semibold">Last mutation failed.</p>
+                <p className="text-sm text-rose-100">{mutationError}</p>
+              </div>
+            )}
+
             {isLoading && (
               <div className="rounded-[2rem] border border-white/20 bg-black/35 p-6 backdrop-blur-md">
-                Loading posts from the dummy API...
+                Loading posts from the API...
               </div>
             )}
 
             {isError && (
               <div className="rounded-[2rem] border border-rose-400/40 bg-rose-950/40 p-6">
                 <p className="font-semibold">Unable to load posts.</p>
-                <p className="text-sm text-rose-100">
-                  {(error as Error).message}
-                </p>
+                <p className="text-sm text-rose-100">{(error as Error).message}</p>
               </div>
             )}
 
@@ -424,7 +646,7 @@ export default function PostsQuerySection() {
                     <div className="mt-4 grid grid-cols-3 gap-3">
                       <button
                         type="button"
-                        onClick={() => handleToggleReaction(post.id)}
+                        onClick={() => handleToggleReaction(post)}
                         className={`flex items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
                           post.reacted
                             ? "border-rose-400 bg-rose-500/15 text-rose-200"
@@ -499,17 +721,22 @@ export default function PostsQuerySection() {
           <aside className="space-y-6">
             <div
               className="rounded-[2rem] border border-white/20 bg-black/35 p-6 backdrop-blur-md"
-              style={{ backgroundImage: "linear-gradient(rgba(15,23,42,0.65), rgba(15,23,42,0.65)), url('/beaches/Slide3.PNG')", backgroundSize: "cover", backgroundPosition: "center" }}
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgba(15,23,42,0.65), rgba(15,23,42,0.65)), url('/beaches/Slide3.PNG')",
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
             >
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-cyan-300">
                 Feed behavior
               </p>
               <h2 className="mt-3 text-2xl font-bold">What this page does</h2>
               <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-100">
-                <li>Loads starter posts from the dummy API with React Query caching.</li>
-                <li>Lets authenticated users add temporary posts in the browser.</li>
-                <li>Supports edit and delete actions from the 3-dot menu.</li>
-                <li>Tracks react, comment, and share interactions locally.</li>
+                <li>Loads posts from the API with React Query caching.</li>
+                <li>Optimistically updates the cache before the API responds.</li>
+                <li>Shows create, edit, delete, react, comment, and share mutations in DevTools.</li>
+                <li>Rolls back the cache when a mutation fails.</li>
               </ul>
             </div>
 
@@ -519,7 +746,11 @@ export default function PostsQuerySection() {
               </p>
               <div className="mt-4 space-y-3 text-sm text-slate-200">
                 <p>Loaded posts: {posts.length}</p>
-                <p>{isFetching ? "React Query is syncing the feed." : "Feed is using cached data."}</p>
+                <p>
+                  {isFetching
+                    ? "React Query is syncing the feed."
+                    : "Feed is using cached data."}
+                </p>
                 <p>{shareMessage || "Use Share to copy post text and bump the share count."}</p>
               </div>
             </div>
